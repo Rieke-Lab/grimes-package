@@ -6,13 +6,13 @@ classdef RedBlueSine < edu.washington.riekelab.protocols.RiekeLabProtocol
         preTime = 100
         stimTime = 1000
         tailTime = 100
-        period = 0.5
+        period = 500
         led1
         Amp1 = 0.05
-        lightMean1 = 1
+        lightMean1 = 0.1
         led2
         Amp2 = 0.05
-        lightMean2 = 1
+        lightMean2 = 0.1
         phaseShift = 0
         amp
         ampHoldSignal = -60
@@ -74,7 +74,7 @@ classdef RedBlueSine < edu.washington.riekelab.protocols.RiekeLabProtocol
             gen.phase = 0;
             gen.mean = obj.lightMean1;
             gen.sampleRate = obj.sampleRate;
-            gen.units = 'V';
+            gen.units = obj.rig.getDevice(obj.led1).background.displayUnits;
 
             gen.amplitude = obj.Amp1;
             if (rem(pulseNum, 3) == 2)
