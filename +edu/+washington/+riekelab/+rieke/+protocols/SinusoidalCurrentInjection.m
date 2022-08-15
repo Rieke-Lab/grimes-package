@@ -1,17 +1,20 @@
-classdef PulseWithTrigger < edu.washington.riekelab.protocols.RiekeLabProtocol
+classdef SinusoidalCurrentInjection < edu.washington.riekelab.protocols.RiekeLabProtocol
     
     properties
         amp                             % Output amplifier
-        preTime = 50                    % Pulse leading duration (ms)
-        stimTime = 500                  % Pulse duration (ms)
-        tailTime = 50                   % Pulse trailing duration (ms)
-        pulseAmplitude = 100            % Pulse amplitude (mV or pA)
+        preTime = 100                    % Sine leading duration (ms)
+        stimTime = 3000                  % Sine duration (ms)
+        tailTime = 100                   % Sine trailing duration (ms)
+        sineAmplitude = 20              % Sine amplitude (mV or pA)
+        sineFrequency = [1 2 4 6 8 10 12]   % Sine frequency (Hz)
         numberOfAverages = uint16(5)    % Number of epochs
-        interpulseInterval = 0          % Duration between pulses (s)
+        interpulseInterval = 0          % Duration between ramps (s)
     end
     
     properties (Hidden)
         ampType
+        currentSineFrequency
+        sineFrequencySequence
     end
     
     methods
@@ -30,19 +33,24 @@ classdef PulseWithTrigger < edu.washington.riekelab.protocols.RiekeLabProtocol
             prepareRun@edu.washington.riekelab.protocols.RiekeLabProtocol(obj);
             
             obj.showFigure('symphonyui.builtin.figures.ResponseFigure', obj.rig.getDevice(obj.amp));
-            obj.showFigure('symphonyui.builtin.figures.MeanResponseFigure', obj.rig.getDevice(obj.amp));
+            obj.showFigure('edu.washington.riekelab.turner.figures.MeanResponseFigure',...
+                obj.rig.getDevice(obj.amp));
+            
             obj.showFigure('symphonyui.builtin.figures.ResponseStatisticsFigure', obj.rig.getDevice(obj.amp), {@mean, @var}, ...
                 'baselineRegion', [0 obj.preTime], ...
                 'measurementRegion', [obj.preTime obj.preTime+obj.stimTime]);
+            
+            obj.sineFrequencySequence = obj.sineFrequency;
         end
         
         function stim = createAmpStimulus(obj)
-            gen = symphonyui.builtin.stimuli.PulseGenerator();
+            gen = symphonyui.builtin.stimuli.SineGenerator();
             
             gen.preTime = obj.preTime;
             gen.stimTime = obj.stimTime;
             gen.tailTime = obj.tailTime;
-            gen.amplitude = obj.pulseAmplitude;
+            gen.amplitude = obj.sineAmplitude;
+            gen.period = (1 / obj.currentSineFrequency) * 1e3; %in msec
             gen.mean = obj.rig.getDevice(obj.amp).background.quantity;
             gen.sampleRate = obj.sampleRate;
             gen.units = obj.rig.getDevice(obj.amp).background.displayUnits;
@@ -53,10 +61,13 @@ classdef PulseWithTrigger < edu.washington.riekelab.protocols.RiekeLabProtocol
         function prepareEpoch(obj, epoch)
             prepareEpoch@edu.washington.riekelab.protocols.RiekeLabProtocol(obj, epoch);
             
+            index = mod(obj.numEpochsCompleted, length(obj.sineFrequencySequence)) + 1;
+            % Randomize the spot contrast sequence order at the beginning of each sequence.
+            obj.currentSineFrequency = obj.sineFrequencySequence(index);
+            epoch.addParameter('currentSineFrequency', obj.currentSineFrequency);
+
             epoch.addStimulus(obj.rig.getDevice(obj.amp), obj.createAmpStimulus());
             epoch.addResponse(obj.rig.getDevice(obj.amp));
-            
-            epoch.shouldWaitForTrigger = true;
         end
         
         function prepareInterval(obj, interval)
