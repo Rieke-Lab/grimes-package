@@ -4,6 +4,7 @@ classdef NaturalImageFlashNoNoise < edu.washington.riekelab.turner.protocols.Nat
         preTime = 200 % ms
         flashTime = 200 % ms
         tailTime = 200;
+        apertureDiameter = 0; % um
         numNoiseRepeats = 20;
         numberOfAverages = uint16(180) % number of epochs to queue
     end
@@ -104,8 +105,16 @@ classdef NaturalImageFlashNoNoise < edu.washington.riekelab.turner.protocols.Nat
         function p = createPresentation(obj)            
             p = stage.core.Presentation((obj.preTime + obj.flashTime + obj.tailTime) * obj.numNoiseRepeats * 1e-3); %create presentation of specified duration
             p.setBackgroundColor(obj.backgroundIntensity); % Set background intensity
+            apertureDiameterPix = obj.rig.getDevice('Stage').um2pix(obj.apertureDiameter);
             
             canvasSize = obj.rig.getDevice('Stage').getCanvasSize();
+            imageMatrixStixelSize = canvasSize(1) / size(obj.imagePatchMatrix, 1);
+            distanceMatrix = createDistanceMatrix(size(obj.imagePatchMatrix, 2)-1, size(obj.imagePatchMatrix, 1)-1, imageMatrixStixelSize);
+            if (apertureDiameterPix > 0)
+                Indices = find(distanceMatrix(:) > apertureDiameterPix);
+                obj.imagePatchMatrix(Indices) = uint8(obj.backgroundIntensity * 255);
+                obj.imagePatchMatrix2(Indices) = uint8(obj.backgroundIntensity * 255);
+            end
             
             % Create image
             initMatrix = uint8(255.*(obj.backgroundIntensity .* ones(size(obj.imagePatchMatrix))));
@@ -120,7 +129,7 @@ classdef NaturalImageFlashNoNoise < edu.washington.riekelab.turner.protocols.Nat
             imageController = stage.builtin.controllers.PropertyController(board, 'imageMatrix',...
                 @(state)getNewImage(obj, state.frame, preFrames, flashDurFrames));
             p.addController(imageController); %add the controller
-                        
+
             function i = getNewImage(obj, frame, preFrames, flashDurFrames)
                 persistent boardMatrix;
                 curFrame = rem(frame, flashDurFrames);
@@ -131,6 +140,11 @@ classdef NaturalImageFlashNoNoise < edu.washington.riekelab.turner.protocols.Nat
                     boardMatrix = obj.imagePatchMatrix2;
                 end
                 i = uint8(boardMatrix);
+            end
+            
+            function m = createDistanceMatrix(xsize, ysize, stixelSize)
+                [xx, yy] = meshgrid(-xsize/2:1:xsize/2, -ysize/2:1:ysize/2);
+                m = sqrt((xx*stixelSize).^2 + (yy*stixelSize).^2);
             end
             
         end
